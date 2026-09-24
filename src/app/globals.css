@@ -261,11 +261,8 @@ button:focus-visible {
   background: var(--ink);
   color: #c0200c;
 }
-@media (max-width: 480px) {
-  .nav-link {
-    padding: 0.45rem 0.75rem;
-    font-size: 13px;
-  }
+.nav-link {
+  white-space: nowrap;
 }
 
 /* ---------- work: 3D deck ---------- */
@@ -954,9 +951,27 @@ button:focus-visible {
   background: none; /* the stage carries the gradient so the desk video can sit between */
 }
 .intro .head-stage {
-  aspect-ratio: auto; /* size and position are set by Intro.tsx */
+  /* size and position are set by Intro.tsx; these match its first frame */
   bottom: auto;
+  top: calc(102svh - 90svh);
   z-index: 2;
+}
+@media (max-width: 767px) {
+  .intro .head-stage {
+    --h: 50svh;
+    top: 6svh;
+    /* fade top and bottom so the head floats above the text */
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 72%, transparent 100%);
+    mask-composite: add;
+  }
+  .intro .hero-copy {
+    justify-content: flex-end;
+    padding-top: 0;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  }
+  .intro .intro-panel {
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+  }
 }
 .intro-what {
   right: auto;
@@ -988,7 +1003,7 @@ button:focus-visible {
 }
 .intro-panel {
   position: absolute;
-  z-index: 3;
+  z-index: 5; /* above the bottom fade */
   top: 50%;
   right: clamp(1.5rem, 6vw, 5rem);
   width: min(38rem, 44vw);
@@ -1050,13 +1065,27 @@ button:focus-visible {
     font-size: 2.2rem;
   }
   .intro-statement {
-    font-size: 1.25rem;
+    margin-top: 0.75rem;
+    font-size: 1.1rem;
+  }
+  .intro-note {
+    display: none;
+  }
+  .intro-what .services {
+    margin-top: 0.9rem;
+    gap: 0.6rem;
   }
   .service {
-    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    padding: 0.7rem 0.9rem;
+  }
+  .service h3 {
+    font-size: 1rem;
   }
   .service p {
-    font-size: 14px;
+    margin-top: 0.2rem;
+    font-size: 13px;
+    line-height: 1.45;
   }
 }
 .intro[data-static="true"] {
@@ -1193,4 +1222,51 @@ button:focus-visible {
 }
 .resume-projects .resume-job-years {
   font-weight: 600;
+}
+
+/* ================= mobile: app-style bottom tab bar ================= */
+.nav-icon {
+  display: none;
+}
+@media (max-width: 767px) {
+  .nav {
+    top: auto;
+    bottom: calc(0.6rem + env(safe-area-inset-bottom));
+    left: 0.6rem;
+    right: 0.6rem;
+    transform: none;
+  }
+  .nav-pill {
+    justify-content: space-around;
+    border-radius: 22px;
+    padding: 0.35rem;
+    background: rgba(120, 12, 5, 0.82);
+    box-shadow: 0 12px 30px rgba(40, 3, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  .nav-pill li {
+    flex: 1;
+  }
+  .nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    border-radius: 16px;
+    padding: 0.45rem 0.2rem 0.4rem;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .nav-icon {
+    display: block;
+    width: 21px;
+    height: 21px;
+  }
+  .nav-link[aria-current="true"] {
+    background: var(--ink);
+    color: #c0200c;
+  }
+  /* keep the last content clear of the tab bar */
+  .footer {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
 }

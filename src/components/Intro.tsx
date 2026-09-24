@@ -64,13 +64,14 @@ export default function Intro({ children }: { children: React.ReactNode }) {
         const w = (h * 16) / 9;
         return { left: cx - w / 2, top: bottom - h, w, h };
       };
-      const hero = mobile ? frame(vh * 0.58, vw * 0.5, vh * 1.02) : frame(vh * 0.9, vw * 0.63, vh * 1.02);
-      const aboutBox = mobile ? frame(vh * 0.5, vw * 0.5, vh * 0.56) : frame(vh * 1.02, vw * 0.27, vh * 1.04);
+      // Mobile: character at the top, text underneath.
+      const hero = mobile ? frame(vh * 0.5, vw * 0.5, vh * 0.56) : frame(vh * 0.9, vw * 0.63, vh * 1.02);
+      const aboutBox = mobile ? frame(vh * 0.4, vw * 0.5, vh * 0.44) : frame(vh * 1.02, vw * 0.27, vh * 1.04);
       // Desk video placement: character on the right, facing the services on the left.
-      const dw = mobile ? vw * 1.7 : (vh * 16) / 9;
+      const dw = mobile ? vw * 0.98 : (vh * 16) / 9;
       const dh = (dw * 9) / 16;
       const deskBox: Box = mobile
-        ? { left: vw * 0.5 - dw * 0.4, top: vh * 0.06, w: dw, h: dh }
+        ? { left: vw * 0.5 - dw * 0.52, top: vh * 0.05, w: dw, h: dh }
         : { left: vw * 0.77 - dw * 0.36, top: 0, w: dw, h: dh };
       // Where the portrait must be for its head to sit exactly on the desk character's head.
       const hh = DESK_HEAD.h * deskBox.h;

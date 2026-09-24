@@ -178,6 +178,10 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       window.addEventListener("touchend", requestGyro, { once: true });
     }
     window.addEventListener("resize", resize);
+    // The stage is sized by JS after mount (Intro.tsx), so track the canvas box itself —
+    // otherwise its pixel buffer keeps the first-paint size and the image stretches.
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(canvas);
 
     // --- loop -------------------------------------------------------------
     let raf = 0;
@@ -229,6 +233,7 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       window.removeEventListener("deviceorientation", onOrient);
       window.removeEventListener("touchend", requestGyro);
       window.removeEventListener("resize", resize);
+      ro.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- head config is static per page
   }, [head]);
