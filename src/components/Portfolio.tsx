@@ -1,7 +1,7 @@
-import About from "@/components/About";
 import Contact from "@/components/Contact";
 import Cursor from "@/components/Cursor";
 import Hero from "@/components/Hero";
+import HowChat from "@/components/HowChat";
 import Intro from "@/components/Intro";
 import Nav from "@/components/Nav";
 import ResumeModal from "@/components/ResumeModal";
@@ -19,8 +19,8 @@ export default function Portfolio({ head }: { head: HeadConfig }) {
       </Intro>
       <div className="rest">
         <Timeline />
-        <About variant="how" />
-        <Contact />
+        <HowChat />
+        <Contact avatar={head} />
       </div>
       <ResumeModal />
       <div className="grain" aria-hidden />

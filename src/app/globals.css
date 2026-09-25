@@ -920,7 +920,7 @@ button:focus-visible {
 /* ================= intro scene: hero → about → what I do ================= */
 .intro {
   position: relative;
-  height: 520svh;
+  height: 360svh;
 }
 .intro-anchor {
   position: absolute;
@@ -1268,5 +1268,295 @@ button:focus-visible {
   /* keep the last content clear of the tab bar */
   .footer {
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ================= "How I work" as an AI chat ================= */
+.chat {
+  max-width: 52rem;
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+  border-radius: 28px;
+  background: rgba(255, 236, 224, 0.07);
+  border: 1px solid rgba(255, 247, 240, 0.2);
+  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 1.25rem clamp(1.1rem, 3vw, 2.25rem) clamp(1.5rem, 3vw, 2.25rem);
+}
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 247, 240, 0.12);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.chat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7dffb0;
+  box-shadow: 0 0 10px #7dffb0;
+}
+.chat-q {
+  width: fit-content;
+  max-width: 85%;
+  margin: 1.5rem 0 0 auto;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--ink);
+  color: #c0200c;
+  padding: 0.7rem 1.1rem;
+  font-weight: 700;
+  min-height: 2.9rem;
+}
+.chat[data-armed][data-stage="idle"] .chat-q {
+  opacity: 0;
+}
+.chat[data-stage="asking"] .chat-q-text::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  animation: caret 0.8s steps(1) infinite;
+}
+.chat-a {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+.chat-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--bg-center), var(--deep));
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 0 1px rgba(255, 247, 240, 0.3);
+}
+.chat[data-armed]:is([data-stage="idle"], [data-stage="asking"]) .chat-mark {
+  opacity: 0;
+}
+.chat[data-stage="thinking"] .chat-mark,
+.chat[data-stage="answering"] .chat-mark {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.chat-body {
+  flex: 1;
+  min-width: 0;
+}
+.chat-thinking {
+  display: none;
+  gap: 5px;
+  padding: 0.8rem 0;
+}
+.chat[data-stage="thinking"] .chat-thinking {
+  display: inline-flex;
+}
+.chat-thinking i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  animation: think 1s ease-in-out infinite;
+}
+.chat-thinking i:nth-child(2) { animation-delay: 0.15s; }
+.chat-thinking i:nth-child(3) { animation-delay: 0.3s; }
+.chat-points {
+  display: grid;
+  gap: 1.1rem;
+  padding-top: 0.35rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  font-size: 1.05rem;
+}
+.chat-point strong {
+  display: block;
+  color: var(--ink);
+  font-size: 1.2rem;
+}
+/* words are added as they stream (not just faded), so the text and the dot grow in place */
+.chat[data-armed] .w:not(.on) {
+  display: none;
+}
+.chat[data-armed] .w.on {
+  animation: word-in 0.35s ease both;
+}
+@keyframes word-in {
+  from { opacity: 0; filter: blur(4px); }
+}
+.chat-point[data-streaming]::after {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-left: 0.35em;
+  border-radius: 50%;
+  background: var(--ink);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+.chat-sources-label {
+  margin-top: 1.75rem;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: opacity 0.4s;
+}
+/* the answer grows as it streams, like a real chat */
+.chat[data-armed] .chat-point:not([data-started]),
+.chat[data-armed]:not([data-stage="sources"], [data-stage="done"]) :is(.chat-sources-label, .chat-sources) {
+  display: none;
+}
+.chat-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.chat-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(255, 247, 240, 0.3);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem 0.4rem 0.4rem;
+  font-size: 14px;
+  font-weight: 600;
+  transition: box-shadow 0.25s, border-color 0.25s, background 0.25s;
+}
+.chat[data-armed] .chat-source {
+  opacity: 0;
+  transform: translateY(10px) scale(0.9);
+}
+.chat[data-armed] .chat-source.on {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.3, 1.5, 0.5, 1), box-shadow 0.25s, border-color 0.25s, background 0.25s;
+}
+.chat-source:hover {
+  border-color: var(--ink);
+  background: rgba(255, 247, 240, 0.08);
+  box-shadow: 0 0 22px rgba(255, 150, 90, 0.55);
+}
+.chat-cite {
+  display: grid;
+  place-items: center;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  background: rgba(255, 247, 240, 0.14);
+  font-size: 11px;
+  font-weight: 800;
+}
+@keyframes caret { 50% { opacity: 0; } }
+@keyframes think { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-4px); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.82); } }
+
+/* ================= "Let's talk": the avatar returns ================= */
+.contact-with-avatar .contact-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title avatar" "lede avatar" "actions avatar" "socials avatar";
+  align-content: start;
+  column-gap: clamp(2rem, 5vw, 5rem);
+}
+.contact-with-avatar .contact-title { grid-area: title; }
+.contact-with-avatar .contact-lede { grid-area: lede; }
+.contact-with-avatar .contact-actions { grid-area: actions; }
+.contact-with-avatar .socials { grid-area: socials; }
+.contact-avatar {
+  grid-area: avatar;
+  position: relative;
+  align-self: center;
+}
+.contact-orb {
+  --d: clamp(260px, 30vw, 420px);
+  position: relative;
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+  overflow: hidden;
+  /* the head frames carry this background, so the orb and frame blend into one */
+  background: radial-gradient(circle at 50% 45%, var(--bg-center), var(--bg-mid) 60%, var(--bg-edge));
+  box-shadow: 0 0 0 1px rgba(255, 247, 240, 0.25), 0 0 90px -10px rgba(240, 72, 17, 0.7);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.8s ease, transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.contact-orb[data-in] {
+  opacity: 1;
+  transform: none;
+}
+.contact-head.head-stage {
+  --h: calc(var(--d) * 1.08);
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  left: calc(50% - var(--h) * 16 / 18);
+  height: var(--h);
+  mask-image: none;
+  /* rises into the circle once it is in view */
+  transform: translateY(70%);
+  transition: transform 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s;
+}
+.contact-orb[data-in] .contact-head {
+  transform: none;
+}
+.contact-say {
+  position: absolute;
+  top: 6%;
+  left: -1.5rem;
+  translate: -100% 0;
+  white-space: nowrap;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--ink);
+  color: #c0200c;
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  font-size: 15px;
+  opacity: 0;
+  transform: translateY(8px) scale(0.9);
+  transform-origin: 100% 100%;
+  transition: opacity 0.25s, transform 0.3s cubic-bezier(0.3, 1.5, 0.5, 1);
+  pointer-events: none;
+  z-index: 2;
+}
+.contact-say[data-show="true"] {
+  opacity: 1;
+  transform: none;
+}
+@media (max-width: 800px) {
+  .contact-with-avatar .contact-inner {
+    grid-template-columns: 1fr;
+    grid-template-areas: "avatar" "title" "lede" "actions" "socials";
+  }
+  .contact-avatar {
+    justify-self: start;
+    margin-bottom: 1.5rem;
+  }
+  .contact-orb {
+    --d: 200px;
+  }
+  .contact-say {
+    top: 12%;
+    left: calc(100% + 1rem);
+    translate: none;
+    border-radius: 18px 18px 18px 4px;
+    transform-origin: 0 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contact-orb,
+  .contact-head.head-stage {
+    transition: none;
   }
 }

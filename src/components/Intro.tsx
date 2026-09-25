@@ -9,7 +9,7 @@ import { content } from "@/content";
 //  2. About: the name fades, the head glides to the left and grows, and the About
 //     text comes in on the right — the head keeps watching the cursor.
 //  3. What I do: the head shrinks and moves until it sits exactly where the desk
-//     character's head is, looks down at the laptop, and cross-fades into the looping
+//     character's head is, looks down at the laptop, and cuts to the looping
 //     video of the character typing. The services appear on the right, one by one.
 //
 // Positions are all computed from the viewport, so the match cut lines up at any size.
@@ -19,6 +19,14 @@ import { content } from "@/content";
 const DESK_HEAD = { x: 0.47, y: 0.215, h: 0.22 };
 // Portrait frames: centre and height of the head, as fractions of the frame.
 const HEAD = { x: 0.5, y: 0.37, h: 0.64 };
+// Scroll progress (0..1) where each scene is fully on screen. When scrolling stops
+// between two of them, the page glides on to the next one, so it never rests
+// half-way through a transition (e.g. with the head cross-fading over the desk).
+const STOPS = { hero: 0, about: 0.25, what: 0.88 };
+// Where the head, now sitting on the desk character's head, cuts straight to the
+// desk video. A cut, not a cross-fade: the two faces never line up exactly, so any
+// overlap shows a double face.
+const CUT = 0.485;
 
 type Box = { left: number; top: number; w: number; h: number };
 
@@ -112,9 +120,9 @@ export default function Intro({ children }: { children: React.ReactNode }) {
       const { hero, aboutBox, deskBox, match } = boxes();
 
       // 1 → 2: hero copy out, head to the left, About in.
-      const toAbout = smooth(0, 0.14, p);
-      // 2 → 3: head onto the desk character's head, then cross-fade to the video.
-      const toDesk = smooth(0.42, 0.55, p);
+      const toAbout = smooth(0, 0.16, p);
+      // 2 → 3: head onto the desk character's head, then cut to the video.
+      const toDesk = smooth(0.3, 0.48, p);
       const heroFade = String(1 - smooth(0, 0.08, p));
       if (heroCopy) heroCopy.style.opacity = heroFade;
       if (cue) cue.style.opacity = heroFade;
@@ -125,58 +133,111 @@ export default function Intro({ children }: { children: React.ReactNode }) {
         head.style.top = `${b.top}px`;
         head.style.width = `${b.w}px`;
         head.style.height = `${b.h}px`;
-        head.style.opacity = String(1 - smooth(0.52, 0.57, p));
+        head.style.opacity = p < CUT ? "1" : "0";
         // Once it leaves the bottom of the screen, fade the frame's edges on all sides
         // so it never shows as a box.
         head.style.maskImage = head.style.webkitMaskImage =
           toDesk > 0 ? "radial-gradient(ellipse 34% 46% at 50% 44%, #000 62%, transparent 100%)" : "";
       }
 
-      lookDown = p > 0.4 && p < 0.6;
+      lookDown = p > 0.28 && p < 0.6;
 
-      const aboutIn = smooth(0.08, 0.2, p) * (1 - smooth(0.4, 0.47, p));
+      const aboutIn = smooth(0.08, 0.2, p) * (1 - smooth(0.3, 0.36, p));
       about.style.opacity = String(aboutIn);
-      about.style.transform = `translateY(${(1 - smooth(0.08, 0.2, p)) * 40 - smooth(0.4, 0.47, p) * 40}px)`;
+      about.style.transform = `translateY(${(1 - smooth(0.08, 0.2, p)) * 40 - smooth(0.3, 0.36, p) * 40}px)`;
       about.style.visibility = aboutIn > 0.01 ? "visible" : "hidden";
 
       desk.style.left = `${deskBox.left}px`;
       desk.style.top = `${deskBox.top}px`;
       desk.style.width = `${deskBox.w}px`;
       desk.style.height = `${deskBox.h}px`;
-      const deskIn = smooth(0.5, 0.56, p);
-      desk.style.opacity = String(deskIn);
-      if (deskIn > 0 && video.paused) video.play().catch(() => {});
-      if (deskIn === 0 && !video.paused) video.pause();
+      desk.style.opacity = p < CUT ? "0" : "1";
+      // Start the video a little before the cut so it is already playing there.
+      const deskSoon = p > 0.4;
+      if (deskSoon && video.paused) video.play().catch(() => {});
+      if (!deskSoon && !video.paused) video.pause();
 
-      const whatIn = smooth(0.56, 0.63, p);
+      const whatIn = smooth(0.5, 0.56, p);
       what.style.opacity = String(whatIn);
       what.style.visibility = whatIn > 0.01 ? "visible" : "hidden";
       cards.forEach((c, i) => {
-        const t = smooth(0.62 + i * 0.08, 0.7 + i * 0.08, p);
+        const t = smooth(0.54 + i * 0.07, 0.62 + i * 0.07, p);
         c.style.opacity = String(t);
         c.style.transform = `translateY(${(1 - t) * 50}px) rotateX(${(1 - t) * -20}deg)`;
       });
+    };
+
+    // --- settle on a scene ----------------------------------------------------
+    // Resting ranges: the hero at the top, About fully in, and What I do with all
+    // cards shown (through to the end of the scene, where the page scrolls on).
+    const stops = [STOPS.hero, STOPS.about, STOPS.what];
+    const atRest = (p: number) => p < 0.005 || (p > 0.2 && p < 0.3) || p > 0.8;
+    const progress = () => {
+      const r = section.getBoundingClientRect();
+      return { p: -r.top / Math.max(r.height - window.innerHeight, 1), range: r.height - window.innerHeight, top: window.scrollY + r.top };
+    };
+    let lastY = window.scrollY;
+    let dir = 1;
+    let settling = false;
+    let touching = false;
+    let idle = 0;
+    const settle = () => {
+      const { p, range, top } = progress();
+      if (reduce || touching || p <= 0 || p >= 1 || atRest(p)) return;
+      const next = dir > 0 ? stops.find((s) => s > p) : [...stops].reverse().find((s) => s < p);
+      if (next === undefined) return;
+      settling = true;
+      window.scrollTo({ top: top + next * range, behavior: "smooth" });
+    };
+    const onScroll = () => {
+      request();
+      const y = window.scrollY;
+      if (!settling && y !== lastY) dir = y > lastY ? 1 : -1;
+      lastY = y;
+      clearTimeout(idle);
+      // Wait for wheel / trackpad momentum to finish before deciding.
+      idle = window.setTimeout(() => (settling ? (settling = false) : settle()), 160);
+    };
+    // Any new input from the person takes over from a glide in progress.
+    const takeOver = () => (settling = false);
+    const onTouchStart = () => {
+      touching = true;
+      settling = false;
+    };
+    const onTouchEnd = () => {
+      touching = false;
+      clearTimeout(idle);
+      idle = window.setTimeout(settle, 160);
     };
 
     const request = () => {
       if (!raf) raf = requestAnimationFrame(render);
     };
     render();
-    window.addEventListener("scroll", request, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", request);
+    window.addEventListener("wheel", takeOver, { passive: true });
+    window.addEventListener("keydown", takeOver);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(lookRaf);
-      window.removeEventListener("scroll", request);
+      clearTimeout(idle);
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", request);
+      window.removeEventListener("wheel", takeOver);
+      window.removeEventListener("keydown", takeOver);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
     };
   }, []);
 
   return (
     <section ref={sectionRef} className="intro" aria-label="Introduction">
       {/* Nav targets at the scroll points where each part is fully on screen. */}
-      <span id="about" className="intro-anchor" style={{ top: "30%" }} />
-      <span id="what" className="intro-anchor" style={{ top: "66%" }} />
+      <span id="about" className="intro-anchor" style={{ top: `calc((100% - 100svh) * ${STOPS.about})` }} />
+      <span id="what" className="intro-anchor" style={{ top: `calc((100% - 100svh) * ${STOPS.what})` }} />
 
       <div className="intro-stage">
         <div ref={deskRef} className="intro-desk" aria-hidden>

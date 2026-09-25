@@ -7,6 +7,21 @@ import { content, type HeadConfig } from "@/content";
 const FACE_X = 0.5;
 const FACE_Y = 0.38;
 
+// Decoded frames, shared by every head on the page (so a second head costs nothing).
+const frameCache = new Map<string, Promise<HTMLImageElement>>();
+function loadFrame(url: string) {
+  let p = frameCache.get(url);
+  if (!p) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    p = img.decode().then(() => img);
+    p.catch(() => frameCache.delete(url));
+    frameCache.set(url, p);
+  }
+  return p;
+}
+
 // Step load order, coarse-to-fine, so every direction is usable early.
 function stepOrder(n: number): number[] {
   const order = [0, n];
@@ -78,7 +93,9 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
     // Never cross-fades two directions (that ghosts two faces): pick the nearest
     // direction and shrink the turn as the cursor moves toward the boundary with the
     // next one, so switching happens near the front pose.
-    const draw = (lx: number, ly: number, moving: boolean) => {
+    // `blend` is 1 while moving (dissolve between the two nearest steps for smooth
+    // motion) and eases to 0 at rest (settle on one sharp frame without a pop).
+    const draw = (lx: number, ly: number, blend: number) => {
       const mag = Math.min(1, Math.hypot(lx, ly));
       const angle = (((Math.atan2(ly, lx) * 180) / Math.PI) + 360) % 360;
 
@@ -97,9 +114,8 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       if (s0 < 0) return;
       const s1 = Math.min(steps, s0 + 1);
       const hasNext = s1 !== s0 && images.has(key(dir, s1));
-      // Blend only while moving; at rest snap to a single sharp frame.
       const frac = Math.max(0, Math.min(1, pos - s0));
-      const w = !hasNext ? 0 : moving ? Math.round(frac * 8) / 8 : Math.round(frac);
+      const w = !hasNext ? 0 : Math.round((frac * blend + Math.round(frac) * (1 - blend)) * 16) / 16;
 
       const k = `${key(dir, s0)}|${w}`;
       if (k === lastKey) return;
@@ -180,11 +196,25 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
     window.addEventListener("resize", resize);
     // The stage is sized by JS after mount (Intro.tsx), so track the canvas box itself —
     // otherwise its pixel buffer keeps the first-paint size and the image stretches.
-    const ro = new ResizeObserver(() => resize());
+    // Debounced: the stage resizes every frame while scrolling through the intro, and
+    // reallocating the buffer each time stutters; meanwhile CSS scales it (same 16:9).
+    let resizeTimer = 0;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(resize, 150);
+    });
     ro.observe(canvas);
+    // Skip drawing while off screen (the head keeps easing, so it's right on return).
+    let onScreen = true;
+    const io = new IntersectionObserver(([e]) => {
+      onScreen = e.isIntersecting;
+      lastKey = "";
+    });
+    io.observe(canvas);
 
     // --- loop -------------------------------------------------------------
     let raf = 0;
+    let blend = 0;
     let prev = performance.now();
     const tick = (now: number) => {
       const dt = Math.min(64, now - prev);
@@ -195,8 +225,9 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       current.y += (target.y - current.y) * k;
 
       const moving = Math.hypot(target.x - current.x, target.y - current.y) > 0.01;
-      draw(current.x, current.y, moving);
-      if (!reduceMotion) {
+      blend = moving ? 1 : Math.max(0, blend - dt / 250);
+      if (onScreen) draw(current.x, current.y, blend);
+      if (onScreen && !reduceMotion) {
         tilt.style.transform = `perspective(1400px) rotateX(${-current.y * 3}deg) rotateY(${current.x * 3}deg) translate3d(${current.x * 8}px, ${current.y * 6}px, 0)`;
       }
       raf = requestAnimationFrame(tick);
@@ -208,11 +239,8 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       for (const d of dirs) queue.push([d.name, s]);
     }
     for (const [dir, step] of queue) {
-      const img = new Image();
-      img.decoding = "async";
-      img.src = src(dir, step);
-      img.decode().then(
-        () => {
+      loadFrame(src(dir, step)).then(
+        (img) => {
           if (disposed) return;
           images.set(key(dir, step), img);
           lastKey = "";
@@ -234,6 +262,8 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       window.removeEventListener("touchend", requestGyro);
       window.removeEventListener("resize", resize);
       ro.disconnect();
+      io.disconnect();
+      clearTimeout(resizeTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- head config is static per page
   }, [head]);
