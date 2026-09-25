@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { content, type HeadConfig } from "@/content";
+import { content, type HeadConfig, type RingConfig } from "@/content";
 
 // Where the face sits in the frame (fractions), measured on the front-facing image.
 const FACE_X = 0.5;
@@ -32,11 +32,21 @@ function stepOrder(n: number): number[] {
   return [...new Set(order)];
 }
 
-export default function HeadTracker({ head }: { head: HeadConfig }) {
-  const { steps, width, height, base } = head;
+// Two kinds of head frames:
+//  - directions (HeadConfig): one clip per direction, front → fully turned;
+//  - ring (RingConfig): one clip of the head tracing a circle, a frame every `step`
+//    degrees, so the cursor's direction scrubs through a single continuous motion.
+export default function HeadTracker({ head }: { head: HeadConfig | RingConfig }) {
+  const ring = "kind" in head ? head : null;
+  const dirHead = "kind" in head ? null : head;
+  const { width, height, base } = head;
+  const steps = dirHead?.steps ?? 0;
   const src = (dir: string, step: number) => `/${base}/${dir}/f_${String(step).padStart(2, "0")}.webp`;
+  const ringName = (i: number) => `r_${String(i).padStart(3, "0")}`;
+  const ringSrc = (name: string) => `/${base}/${name}.webp`;
   // Directions sorted by angle so neighbours can be found by walking the circle.
-  const dirs = [...head.directions].sort((a, b) => a.angle - b.angle);
+  const dirs = dirHead ? [...dirHead.directions].sort((a, b) => a.angle - b.angle) : [];
+  const poster = ring ? ringSrc("a_00") : src(dirs[0].name, 0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
 
@@ -95,7 +105,7 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
     // next one, so switching happens near the front pose.
     // `blend` is 1 while moving (dissolve between the two nearest steps for smooth
     // motion) and eases to 0 at rest (settle on one sharp frame without a pop).
-    const draw = (lx: number, ly: number, blend: number) => {
+    const drawDirections = (lx: number, ly: number, blend: number) => {
       const mag = Math.min(1, Math.hypot(lx, ly));
       const angle = (((Math.atan2(ly, lx) * 180) / Math.PI) + 360) % 360;
 
@@ -130,6 +140,78 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
         blit(images.get(key(dir, s1))!);
         ctx.globalAlpha = 1;
       }
+    };
+
+    // Ring: the direction picks the frame along the circle (the two nearest blended while
+    // moving, like the steps above). Never cross-fades to the front pose — two different
+    // poses on top of each other show a double face.
+    const nearestRing = (i: number) => {
+      for (let d = 0; d <= ring!.count / 2; d++) {
+        for (const j of [i - d, i + d]) {
+          const n = ringName((j + ring!.count) % ring!.count);
+          if (images.has(n)) return n;
+        }
+      }
+      return null;
+    };
+    const drawRing = (angle: number, blend: number) => {
+      const { count, step } = ring!;
+      const pos = (((angle % 360) + 360) % 360) / step;
+      const i0 = Math.floor(pos) % count;
+      const r0 = nearestRing(i0);
+      if (!r0) return;
+      const r1 = ringName((i0 + 1) % count);
+      const frac = pos - Math.floor(pos);
+      const w = r0 === ringName(i0) && images.has(r1)
+        ? Math.round((frac * blend + Math.round(frac) * (1 - blend)) * 16) / 16
+        : 0;
+      const k = `${r0}|${w}`;
+      if (k === lastKey) return;
+      lastKey = k;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingQuality = "high";
+      ctx.globalAlpha = 1;
+      blit(images.get(r0)!);
+      if (w > 0) {
+        ctx.globalAlpha = w;
+        blit(images.get(r1)!);
+        ctx.globalAlpha = 1;
+      }
+    };
+    // A single frame by name (the front pose and the opening turn).
+    const drawFrame = (name: string) => {
+      if (!images.has(name) || lastKey === name) return;
+      lastKey = name;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+      blit(images.get(name)!);
+    };
+
+    // Ring state: facing front until the cursor first moves away, then the clip's own
+    // opening turn (front → right), then the head's direction rotates around the circle
+    // toward the cursor (the short way). With the cursor on the face it keeps its
+    // direction, like the clip — it never jumps or fades back to the front.
+    let ringMode: "front" | "opening" | "ring" = "front";
+    let openT = 0;
+    let ringAngle = 0;
+    let ringTarget = 0;
+    const tickRing = (dt: number, k: number) => {
+      const r = ring!;
+      const tm = Math.hypot(target.x, target.y);
+      if (tm > 0.12) ringTarget = (((Math.atan2(target.y, target.x) * 180) / Math.PI) + 360) % 360;
+      if (ringMode === "front") {
+        if (tm > 0.3) ringMode = "opening";
+        return drawFrame("a_00");
+      }
+      if (ringMode === "opening") {
+        openT = Math.min(1, openT + dt / 450);
+        if (openT >= 1) ringMode = "ring";
+        return drawFrame(`a_${String(Math.round(openT * (r.approach - 1))).padStart(2, "0")}`);
+      }
+      const diff = ((ringTarget - ringAngle + 540) % 360) - 180;
+      ringAngle = (ringAngle + diff * k + 360) % 360;
+      blend = Math.abs(diff) > 0.5 ? 1 : Math.max(0, blend - dt / 250);
+      drawRing(ringAngle, blend);
     };
 
     // --- input ------------------------------------------------------------
@@ -224,9 +306,13 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
       current.x += (target.x - current.x) * k;
       current.y += (target.y - current.y) * k;
 
-      const moving = Math.hypot(target.x - current.x, target.y - current.y) > 0.01;
-      blend = moving ? 1 : Math.max(0, blend - dt / 250);
-      if (onScreen) draw(current.x, current.y, blend);
+      if (ring) {
+        if (onScreen) tickRing(dt, k);
+      } else {
+        const moving = Math.hypot(target.x - current.x, target.y - current.y) > 0.01;
+        blend = moving ? 1 : Math.max(0, blend - dt / 250);
+        if (onScreen) drawDirections(current.x, current.y, blend);
+      }
       if (onScreen && !reduceMotion) {
         tilt.style.transform = `perspective(1400px) rotateX(${-current.y * 3}deg) rotateY(${current.x * 3}deg) translate3d(${current.x * 8}px, ${current.y * 6}px, 0)`;
       }
@@ -234,15 +320,30 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
     };
 
     // --- preload ------------------------------------------------------------
-    const queue: [string, number][] = [];
-    for (const s of stepOrder(steps)) {
-      for (const d of dirs) queue.push([d.name, s]);
+    // [image key, url], coarse-to-fine so the whole range is usable early
+    const queue: [string, string][] = [];
+    if (ring) {
+      for (let i = 0; i < ring.approach; i++) {
+        const n = `a_${String(i).padStart(2, "0")}`;
+        queue.push([n, ringSrc(n)]);
+      }
+      const seen = new Set<number>();
+      for (let stride = 16; stride >= 1; stride /= 2) {
+        for (let i = 0; i < ring.count; i += stride) {
+          if (!seen.has(i)) queue.push([ringName(i), ringSrc(ringName(i))]);
+          seen.add(i);
+        }
+      }
+    } else {
+      for (const s of stepOrder(steps)) {
+        for (const d of dirs) queue.push([key(d.name, s), src(d.name, s)]);
+      }
     }
-    for (const [dir, step] of queue) {
-      loadFrame(src(dir, step)).then(
+    for (const [k, url] of queue) {
+      loadFrame(url).then(
         (img) => {
           if (disposed) return;
-          images.set(key(dir, step), img);
+          images.set(k, img);
           lastKey = "";
         },
         () => {},
@@ -276,7 +377,7 @@ export default function HeadTracker({ head }: { head: HeadConfig }) {
         aria-label={`Portrait of ${content.name} that turns to follow your cursor`}
         role="img"
         className="head-canvas h-full w-full"
-        style={{ backgroundImage: `url(${src(dirs[0].name, 0)})` }}
+        style={{ backgroundImage: `url(${poster})` }}
       />
     </div>
   );

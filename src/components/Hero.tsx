@@ -1,8 +1,8 @@
 import HeadTracker from "@/components/HeadTracker";
-import type { HeadConfig } from "@/content";
+import type { AnyHead } from "@/content";
 import { content } from "@/content";
 
-export default function Hero({ head }: { head: HeadConfig }) {
+export default function Hero({ head }: { head: AnyHead }) {
   return (
     <div className="hero relative h-svh min-h-[560px] w-full overflow-hidden">
       {/* Character */}

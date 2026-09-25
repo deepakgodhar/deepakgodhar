@@ -30,7 +30,13 @@ const CUT = 0.485;
 
 type Box = { left: number; top: number; w: number; h: number };
 
-export default function Intro({ children }: { children: React.ReactNode }) {
+export default function Intro({
+  children,
+  deskHead = DESK_HEAD,
+}: {
+  children: React.ReactNode;
+  deskHead?: { x: number; y: number; h: number };
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const aboutRef = useRef<HTMLDivElement>(null);
   const whatRef = useRef<HTMLDivElement>(null);
@@ -82,12 +88,12 @@ export default function Intro({ children }: { children: React.ReactNode }) {
         ? { left: vw * 0.5 - dw * 0.52, top: vh * 0.05, w: dw, h: dh }
         : { left: vw * 0.77 - dw * 0.36, top: 0, w: dw, h: dh };
       // Where the portrait must be for its head to sit exactly on the desk character's head.
-      const hh = DESK_HEAD.h * deskBox.h;
+      const hh = deskHead.h * deskBox.h;
       const ph = hh / HEAD.h;
       const pw = (ph * 16) / 9;
       const match: Box = {
-        left: deskBox.left + DESK_HEAD.x * deskBox.w - HEAD.x * pw,
-        top: deskBox.top + DESK_HEAD.y * deskBox.h - HEAD.y * ph,
+        left: deskBox.left + deskHead.x * deskBox.w - HEAD.x * pw,
+        top: deskBox.top + deskHead.y * deskBox.h - HEAD.y * ph,
         w: pw,
         h: ph,
       };
@@ -231,7 +237,7 @@ export default function Intro({ children }: { children: React.ReactNode }) {
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchend", onTouchEnd);
     };
-  }, []);
+  }, [deskHead]);
 
   return (
     <section ref={sectionRef} className="intro" aria-label="Introduction">

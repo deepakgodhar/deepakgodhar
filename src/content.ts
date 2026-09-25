@@ -150,8 +150,17 @@ export type HeadConfig = {
   base: string;
 };
 
+// One "look around in a circle" clip (scripts/build-ring.py): /<base>/r_000 … one frame
+// every `step` degrees (0 = right, 90 = down), a_00 = facing front.
+export type RingConfig = {
+  kind: "ring"; count: number; step: number; approach: number; width: number; height: number; base: string;
+  // where the head must land on the desk video for the match cut (its down-left pose differs)
+  deskHead?: { x: number; y: number; h: number };
+};
+export type AnyHead = HeadConfig | RingConfig;
+
 // Each direction is a sequence f_00 (facing front) … f_<steps> (fully turned).
-export const heads: { stills: HeadConfig; video: HeadConfig } = {
+export const heads: { stills: HeadConfig; video: HeadConfig; ring: RingConfig } = {
   // Built by scripts/build-directions.sh from frames-src/*.png (shown at /stills).
   stills: {
     steps: 20,
@@ -169,7 +178,7 @@ export const heads: { stills: HeadConfig; video: HeadConfig } = {
     ],
     base: "stills",
   },
-  // Built by scripts/build-video.py from the Flow clips in scripts/clips.json (shown at /).
+  // Built by scripts/build-video.py from the Flow clips in scripts/clips.json (used by /try-1..3).
   // Directions without a clip yet simply ease back toward the front.
   video: {
     steps: 20,
@@ -187,4 +196,6 @@ export const heads: { stills: HeadConfig; video: HeadConfig } = {
     ],
     base: "video",
   },
+  // Built by scripts/build-ring.py from raw/clips/ring2.mp4 (shown at /).
+  ring: { kind: "ring", count: 120, step: 3, approach: 12, width: 1920, height: 1080, base: "ring", deskHead: { x: 0.452, y: 0.19, h: 0.2 } },
 };

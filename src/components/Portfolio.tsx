@@ -6,15 +6,15 @@ import Intro from "@/components/Intro";
 import Nav from "@/components/Nav";
 import ResumeModal from "@/components/ResumeModal";
 import Timeline from "@/components/Timeline";
-import type { HeadConfig } from "@/content";
+import type { AnyHead } from "@/content";
 
 // Hero → About → What I do (one scroll scene) → Career → How I work → Contact.
-export default function Portfolio({ head }: { head: HeadConfig }) {
+export default function Portfolio({ head }: { head: AnyHead }) {
   return (
     <main id="top" className="page">
       <Cursor />
       <Nav />
-      <Intro>
+      <Intro deskHead={"kind" in head ? head.deskHead : undefined}>
         <Hero head={head} />
       </Intro>
       <div className="rest">

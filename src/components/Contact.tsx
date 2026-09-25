@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import HeadTracker from "@/components/HeadTracker";
-import { content, type HeadConfig } from "@/content";
+import { content, type AnyHead } from "@/content";
 
 // With `avatar`, the head comes back at the end of the page: it rises into a glowing
 // circle as the section scrolls in, follows the cursor again, and says a line when
 // the buttons are hovered.
-export default function Contact({ avatar }: { avatar?: HeadConfig }) {
+export default function Contact({ avatar }: { avatar?: AnyHead }) {
   const [copied, setCopied] = useState(false);
   const [hovering, setHovering] = useState(false);
   const orbRef = useRef<HTMLDivElement>(null);
